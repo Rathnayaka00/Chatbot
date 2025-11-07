@@ -1,27 +1,19 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-
-from service import answer_question
-
+from service import classify_and_route
 
 router = APIRouter()
 
-
-class Query(BaseModel):
+class ChatQuery(BaseModel):
     question: str
 
-
-@router.post("/ask")
-async def ask(query: Query):
+@router.post("/chat")
+async def chat(query: ChatQuery):
+    if not query.question:
+        raise HTTPException(status_code=400, detail="Question cannot be empty.")
+        
     try:
-        result = answer_question(query.question)
-        return {"answer": result.get("answer")}
+        answer = classify_and_route(query.question)
+        return {"answer": answer}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/")
-async def root():
-    return {"message": "Unified Chatbot API is running", "endpoints": ["POST /ask"]}
-
-
