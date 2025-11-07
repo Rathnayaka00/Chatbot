@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+langchain==0.3.6
+langchain-core==0.3.24
+langchain-openai==0.2.6
+langchain-community==0.3.2
+openai
+pypdf
+chromadb==0.5.3
+tiktoken
+numpy==1.26.4
+posthog<3
+sqlalchemy
+psycopg2-binary
+python-dotenv
+pandas
+cryptography
