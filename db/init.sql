@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS appointment_service_db.appointment (
     customer_id INT,
     vehicle_id INT,
     appointment_date TIMESTAMP,
-    time_slot VARCHAR(100),
+    time_slot VARCHAR(100) NULL,  -- Allow NULL for time_slot
     service_type VARCHAR(100),
     status VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -183,13 +183,15 @@ INSERT INTO vehicle_service_db.vehicle (customer_id, vin, license_plate, model, 
 (4, '4T1BE46K67U654321', 'CAR-5666', 'Camry', 'Toyota', 2018, 'Black', 80000, 'Inactive'),
 (5, 'JH4KA2650MC000789', 'LKA-8877', 'Accord', 'Honda', 2022, 'Red', 15000, 'Active');
 
--- Appointments
+-- Appointments (including some with NULL time_slot)
 INSERT INTO appointment_service_db.appointment (customer_id, vehicle_id, appointment_date, time_slot, service_type, status) VALUES
 (1, 1, '2025-11-08 09:00:00', '09:00-10:00', 'Engine Checkup', 'Scheduled'),
 (2, 2, '2025-11-08 11:00:00', '11:00-12:00', 'Oil Change', 'Pending'),
 (3, 3, '2025-11-09 10:30:00', '10:30-11:30', 'Brake Inspection', 'Scheduled'),
 (4, 4, '2025-11-09 14:00:00', '14:00-15:00', 'Body Painting', 'Completed'),
-(5, 5, '2025-11-10 13:00:00', '13:00-14:00', 'Full Service', 'Pending');
+(5, 5, '2025-11-10 13:00:00', '13:00-14:00', 'Full Service', 'Pending'),
+(1, 1, '2025-11-12 00:00:00', NULL, 'AC Repair', 'Scheduled'),
+(2, 2, '2025-11-15 00:00:00', NULL, 'Tire Replacement', 'Pending');
 
 -- Services
 INSERT INTO service_management_db.service (vehicle_id, assigned_to, service_type, description, start_time, end_time, estimated_cost, actual_cost, completion_percentage, notes, status) VALUES

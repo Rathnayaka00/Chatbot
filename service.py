@@ -26,11 +26,10 @@ client = OpenAI(api_key=api_key)
 rag_llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
 embedding_model = OpenAIEmbeddings(model="text-embedding-3-small")
 
-chroma_host = os.getenv("CHROMA_HOST", "localhost")
-chroma_port = int(os.getenv("CHROMA_PORT", "8000"))
+chroma_path = os.getenv("CHROMA_PATH", "chroma_db")
 collection_name = os.getenv("CHROMA_COLLECTION", "rag_docs")
 
-chroma_client = chromadb.HttpClient(host=chroma_host, port=chroma_port)
+chroma_client = chromadb.PersistentClient(path=chroma_path)
 vectorstore = Chroma(
     client=chroma_client,
     collection_name=collection_name,
@@ -188,7 +187,9 @@ SQL: SELECT c.customer_id, c.name, c.email, c.phone, c.created_at
       ORDER BY c.created_at DESC;
 """
 
-def generate_sql(question: str) -> str:
+def generate_sql(question: str, customer_id: int = None) -> str:
+    customer_filter = f"AND c.customer_id = {customer_id}" if customer_id else ""
+    
     prompt = f"""
 You are an expert PostgreSQL SQL generator for a garage service microservices database.
 
@@ -227,6 +228,9 @@ Relationships:
     * "bookings", "appointments" → appointment_service_db.appointment with joins
     * "clients", "customers" → customer_service_db.customer
   - When listing categories (like service types), prefer SELECT DISTINCT and ORDER BY ASC.
+  - IMPORTANT: If a customer_id filter is provided, ALWAYS add it to the WHERE clause when querying customer-related data (appointments, vehicles, services related to customer vehicles).
+
+{"CUSTOMER FILTER: Apply customer_id = " + str(customer_id) + " to all customer-specific queries (appointments, vehicles, services)." if customer_id else "NO CUSTOMER FILTER: Provide general information only (service types, employee list, general stats). DO NOT return specific appointment, vehicle, or service details."}
 
 Examples:
 {few_shot_examples}
@@ -293,10 +297,10 @@ Write the answer now.
     )
     return response.choices[0].message.content.strip()
 
-def invoke_sql_chain(question: str) -> str:
+def invoke_sql_chain(question: str, customer_id: int = None) -> str:
     """Invokes the full SQL chain (generate, execute, explain) and returns the answer."""
     try:
-        sql_query = generate_sql(question)
+        sql_query = generate_sql(question, customer_id)
         print(f"Generated SQL: {sql_query}") 
         result_df = execute_sql(sql_query)
         reply = explain_results(question, result_df)
@@ -342,12 +346,31 @@ tools = [
     }
 ]
 
-def classify_and_route(question: str) -> str:
+def is_personal_data_request(question: str) -> bool:
+    """
+    Checks if the question is asking for personal/customer-specific data.
+    Returns True if the question requests appointments, vehicles, services, or customer details.
+    """
+    personal_keywords = [
+        'appointment', 'booking', 'my car', 'my vehicle', 'my service',
+        'vehicle details', 'car details', 'service status', 'my booking',
+        'when is my', 'status of my', 'my vehicles', 'my appointments'
+    ]
+    
+    question_lower = question.lower()
+    return any(keyword in question_lower for keyword in personal_keywords)
+
+def classify_and_route(question: str, customer_id: int = None) -> str:
     """
     1. Classifies the user's question using OpenAI tool calling.
     2. Routes the question to the appropriate function (RAG or SQL).
     3. Returns the answer from that function.
+    4. Validates customer_id for personal data requests.
     """
+    
+    # Check if customer is requesting personal data without providing customer_id
+    if is_personal_data_request(question) and customer_id is None:
+        return "Sorry! To view your appointment details, vehicle info, or service status, please log in to your account. But I can help you with general service information anytime!"
     
     system_prompt = """
     You are an intelligent routing assistant. Based on the user's question, you must call *one* of the provided functions.
@@ -382,7 +405,8 @@ def classify_and_route(question: str) -> str:
                 
             elif function_name == "query_sql_system":
                 print(f"Routing to SQL system for question: {function_args['question']}")
-                return invoke_sql_chain(function_args['question'])
+                # Pass customer_id to SQL chain
+                return invoke_sql_chain(function_args['question'], customer_id)
             
             else:
                 return "Error: Unknown function call."
